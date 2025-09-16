@@ -1,0 +1,102 @@
+name: BMS CI/CD Pipeline (Ubuntu Latest)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: my-bms-app
+      CONTAINER_NAME: my-bms-container
+      APP_PORT: 3000
+      REPORTS_DIR: reports
+
+    steps:
+      # 1. Checkout Code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # 3. Install Dependencies
+      - name: Install Dependencies
+        run: |
+          npm install
+          chmod -R 755 node_modules/.bin
+
+      # 4. Prepare Reports Folder
+      - name: Prepare Reports Folder
+        run: mkdir -p $REPORTS_DIR
+
+      # 5. Trivy FS Scan
+      - name: Trivy FS Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: table
+          output: ${{ env.REPORTS_DIR }}/trivy-fs-report.txt
+
+      # 6. Build React App
+      - name: Build React App
+        run: |
+          CI=false npm run build
+
+      # 7. Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t $IMAGE_NAME .
+
+      # 8. Trivy Image Scan
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: table
+          output: ${{ env.REPORTS_DIR }}/trivy-image-report.txt
+
+      # 9. Stop Existing Container (if running)
+      - name: Stop Existing Container
+        run: |
+          if [ "$(docker ps -a -q -f name=${CONTAINER_NAME})" ]; then
+            docker rm -f ${CONTAINER_NAME}
+          fi
+
+      # 10. Run Docker Container
+      - name: Run Docker Container
+        run: |
+          docker run -d -p $APP_PORT:$APP_PORT --name $CONTAINER_NAME -e BROWSER=none $IMAGE_NAME
+          sleep 15
+
+      # 11. DAST Scan (OWASP ZAP)
+      - name: DAST Scan (OWASP ZAP)
+        run: |
+          mkdir -p $REPORTS_DIR
+          sleep 15
+          docker run --rm --network host -v ${{ github.workspace }}/$REPORTS_DIR:/zap/wrk \
+            owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:$APP_PORT \
+            -r /zap/wrk/zap_report.html || true
+
+      # 12. Smoke Test
+      - name: Smoke Test
+        run: curl -f http://localhost:$APP_PORT
+
+      # 13. Upload Reports as Artifacts
+      - name: Upload Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: reports/
