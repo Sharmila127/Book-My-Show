@@ -19,11 +19,11 @@ jobs:
     steps:
       # 1. Checkout Code
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 2. Setup Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
 
@@ -39,7 +39,7 @@ jobs:
 
       # 5. Trivy FS Scan
       - name: Trivy FS Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: fs
           ignore-unfixed: true
@@ -59,7 +59,7 @@ jobs:
 
       # 8. Trivy Image Scan
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}
           ignore-unfixed: true
@@ -94,9 +94,10 @@ jobs:
       - name: Smoke Test
         run: curl -f http://localhost:$APP_PORT
 
-      # 13. Upload Reports as Artifacts
+      # 13. Upload Reports as Artifacts (v4)
       - name: Upload Reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: reports/
+
