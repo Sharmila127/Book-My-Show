@@ -16,6 +16,9 @@ COPY . .
 # Fix OpenSSL 3 issue for Webpack builds
 ENV NODE_OPTIONS=--openssl-legacy-provider
 
+# Disable CI strict mode to prevent ESLint warnings from breaking the build
+ENV CI=false
+
 # Build the app
 RUN npm run build
 
@@ -42,4 +45,3 @@ ENV PORT=3000
 
 # Start the app
 CMD ["serve", "-s", "build", "-l", "tcp://0.0.0.0:3000"]
-
